@@ -422,7 +422,7 @@ export default {
     "Remove Token": "Remove Token",
     Start: "Start",
     Stop: "Stop",
-    "Uptime Kuma": "Uptime Kuma",
+    "Uptime Kuma": "Uptime Savis",
     "Add New Status Page": "Thêm mới Status Page",
     Slug: "Slug",
     "Accept characters:": "Accept characters:",

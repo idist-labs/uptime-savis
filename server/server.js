@@ -3,7 +3,7 @@
  * node "server/server.js"
  * DO NOT require("./server") in other modules, it likely creates circular dependency!
  */
-console.log("Welcome to Uptime Kuma");
+console.log("Welcome to Uptime Savis");
 
 // Check Node.js Version
 const nodeVersion = parseInt(process.versions.node.split(".")[0]);
@@ -19,7 +19,7 @@ const args = require("args-parser")(process.argv);
 const { sleep, log, getRandomInt, genSecret, isDev } = require("../src/util");
 const config = require("./config");
 
-log.info("server", "Welcome to Uptime Kuma");
+log.info("server", "Welcome to Uptime Savis");
 log.debug("server", "Arguments");
 log.debug("server", args);
 
