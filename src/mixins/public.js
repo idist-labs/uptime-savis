@@ -1,11 +1,10 @@
 import axios from "axios";
+import { baseURL } from "../auth-client";
 
 const env = process.env.NODE_ENV || "production";
 
 // change the axios base url for development
-if (env === "development" || localStorage.dev === "dev") {
-    axios.defaults.baseURL = location.protocol + "//" + location.hostname + ":3001";
-}
+axios.defaults.baseURL = baseURL;
 
 export default {
     data() {
@@ -48,5 +47,5 @@ export default {
                 return location.protocol + "//" + location.host;
             }
         },
-    }
+    },
 };

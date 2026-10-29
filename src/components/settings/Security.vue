@@ -4,8 +4,14 @@
             <!-- Change Password -->
             <template v-if="!settings.disableAuth">
                 <p>
-                    {{ $t("Current User") }}: <strong>{{ $root.username }}</strong>
-                    <button v-if="! settings.disableAuth" id="logout-btn" class="btn btn-danger ms-4 me-2 mb-2" @click="$root.logout">{{ $t("Logout") }}</button>
+                    <button
+                        v-if="!settings.disableAuth"
+                        id="logout-btn"
+                        class="btn btn-danger ms-4 me-2 mb-2"
+                        @click="$root.logout"
+                    >
+                        {{ $t("logoutCurrentUser", { username: $root.username }) }}
+                    </button>
                 </p>
 
                 <h5 class="my-4 settings-subheading">{{ $t("Change Password") }}</h5>
@@ -19,6 +25,7 @@
                             v-model="password.currentPassword"
                             type="password"
                             class="form-control"
+                            autocomplete="current-password"
                             required
                         />
                     </div>
@@ -32,6 +39,7 @@
                             v-model="password.newPassword"
                             type="password"
                             class="form-control"
+                            autocomplete="new-password"
                             required
                         />
                     </div>
@@ -46,6 +54,7 @@
                             type="password"
                             class="form-control"
                             :class="{ 'is-invalid': invalidPassword }"
+                            autocomplete="new-password"
                             required
                         />
                         <div class="invalid-feedback">
@@ -61,16 +70,12 @@
                 </form>
             </template>
 
-            <div v-if="! settings.disableAuth" class="mt-5 mb-3">
+            <div v-if="!settings.disableAuth" class="mt-5 mb-3">
                 <h5 class="my-4 settings-subheading">
                     {{ $t("Two Factor Authentication") }}
                 </h5>
                 <div class="mb-4">
-                    <button
-                        class="btn btn-primary me-2"
-                        type="button"
-                        @click="$refs.TwoFADialog.show()"
-                    >
+                    <button class="btn btn-primary me-2" type="button" @click="$refs.TwoFADialog.show()">
                         {{ $t("2FA Settings") }}
                     </button>
                 </div>
@@ -81,19 +86,45 @@
                 <h5 class="my-4 settings-subheading">{{ $t("Advanced") }}</h5>
 
                 <div class="mb-4">
-                    <button v-if="settings.disableAuth" id="enableAuth-btn" class="btn btn-outline-primary me-2 mb-2" @click="enableAuth">{{ $t("Enable Auth") }}</button>
-                    <button v-if="! settings.disableAuth" id="disableAuth-btn" class="btn btn-primary me-2 mb-2" @click="confirmDisableAuth">{{ $t("Disable Auth") }}</button>
+                    <button
+                        v-if="settings.disableAuth"
+                        id="enableAuth-btn"
+                        class="btn btn-outline-primary me-2 mb-2"
+                        @click="enableAuth"
+                    >
+                        {{ $t("Enable Auth") }}
+                    </button>
+                    <button
+                        v-if="!settings.disableAuth"
+                        id="disableAuth-btn"
+                        class="btn btn-primary me-2 mb-2"
+                        @click="confirmDisableAuth"
+                    >
+                        {{ $t("Disable Auth") }}
+                    </button>
                 </div>
             </div>
         </div>
 
         <TwoFADialog ref="TwoFADialog" />
 
-        <Confirm ref="confirmDisableAuth" btn-style="btn-danger" :yes-text="$t('I understand, please disable')" :no-text="$t('Leave')" @yes="disableAuth">
-            <!-- eslint-disable-next-line vue/no-v-html -->
-            <p v-html="$t('disableauth.message1')"></p>
-            <!-- eslint-disable-next-line vue/no-v-html -->
-            <p v-html="$t('disableauth.message2')"></p>
+        <Confirm
+            ref="confirmDisableAuth"
+            btn-style="btn-danger"
+            :yes-text="$t('I understand, please disable')"
+            :no-text="$t('Leave')"
+            @yes="disableAuth"
+        >
+            <i18n-t tag="p" keypath="disableauth.message1">
+                <template #disableAuth>
+                    <strong>{{ $t("disable authentication") }}</strong>
+                </template>
+            </i18n-t>
+            <i18n-t tag="p" keypath="disableauth.message2">
+                <template #intendThirdPartyAuth>
+                    <strong>{{ $t("where you intend to implement third-party authentication") }}</strong>
+                </template>
+            </i18n-t>
             <p>{{ $t("Please use this option carefully!") }}</p>
 
             <div class="mb-3">
@@ -115,11 +146,12 @@
 <script>
 import Confirm from "../../components/Confirm.vue";
 import TwoFADialog from "../../components/TwoFADialog.vue";
+import { authClient } from "../../auth-client";
 
 export default {
     components: {
         Confirm,
-        TwoFADialog
+        TwoFADialog,
     },
 
     data() {
@@ -129,7 +161,7 @@ export default {
                 currentPassword: "",
                 newPassword: "",
                 repeatNewPassword: "",
-            }
+            },
         };
     },
 
@@ -142,7 +174,7 @@ export default {
         },
         settingsLoaded() {
             return this.$parent.$parent.$parent.settingsLoaded;
-        }
+        },
     },
 
     watch: {
@@ -152,25 +184,34 @@ export default {
     },
 
     methods: {
-        /** Check new passwords match before saving them */
-        savePassword() {
+        /**
+         * Check new passwords match before saving them
+         * @returns {Promise<void>}
+         */
+        async savePassword() {
             if (this.password.newPassword !== this.password.repeatNewPassword) {
                 this.invalidPassword = true;
             } else {
-                this.$root
-                    .getSocket()
-                    .emit("changePassword", this.password, (res) => {
-                        this.$root.toastRes(res);
-                        if (res.ok) {
-                            this.password.currentPassword = "";
-                            this.password.newPassword = "";
-                            this.password.repeatNewPassword = "";
-                        }
-                    });
+                const { error } = await authClient.changePassword({
+                    currentPassword: this.password.currentPassword,
+                    newPassword: this.password.newPassword,
+                });
+
+                if (error) {
+                    this.$root.toastRes({ ok: false, msg: error.message });
+                } else {
+                    this.$root.toastRes({ ok: true, msg: this.$t("successAuthChangePassword") });
+                    this.password.currentPassword = "";
+                    this.password.newPassword = "";
+                    this.password.repeatNewPassword = "";
+                }
             }
         },
 
-        /** Disable authentication for web app access */
+        /**
+         * Disable authentication for web app access
+         * @returns {void}
+         */
         disableAuth() {
             this.settings.disableAuth = true;
 
@@ -179,22 +220,26 @@ export default {
             this.saveSettings(() => {
                 this.password.currentPassword = "";
                 this.$root.username = null;
-                this.$root.socket.token = "autoLogin";
             }, this.password.currentPassword);
         },
 
-        /** Enable authentication for web app access */
+        /**
+         * Enable authentication for web app access
+         * @returns {void}
+         */
         enableAuth() {
             this.settings.disableAuth = false;
             this.saveSettings();
-            this.$root.storage().removeItem("token");
             location.reload();
         },
 
+        /**
+         * Show confirmation dialog for disable auth
+         * @returns {void}
+         */
         confirmDisableAuth() {
             this.$refs.confirmDisableAuth.show();
         },
-
     },
 };
 </script>

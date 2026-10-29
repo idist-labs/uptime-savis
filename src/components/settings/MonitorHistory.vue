@@ -2,11 +2,8 @@
     <div>
         <div class="my-4">
             <label for="keepDataPeriodDays" class="form-label">
-                {{
-                    $t("clearDataOlderThan", [
-                        settings.keepDataPeriodDays,
-                    ])
-                }}
+                {{ $t("clearDataOlderThan", [settings.keepDataPeriodDays]) }}
+                {{ $t("infiniteRetention") }}
             </label>
             <input
                 id="keepDataPeriodDays"
@@ -14,9 +11,12 @@
                 type="number"
                 class="form-control"
                 required
-                min="1"
+                min="0"
                 step="1"
             />
+            <div v-if="settings.keepDataPeriodDays < 0" class="form-text">
+                {{ $t("dataRetentionTimeError") }}
+            </div>
         </div>
         <div class="my-4">
             <button class="btn btn-primary" type="button" @click="saveSettings()">
@@ -24,17 +24,20 @@
             </button>
         </div>
         <div class="my-4">
-            <div class="my-3">
+            <div v-if="$root.info.dbType === 'sqlite'" class="my-3">
                 <button class="btn btn-outline-info me-2" @click="shrinkDatabase">
                     {{ $t("Shrink Database") }} ({{ databaseSizeDisplay }})
                 </button>
-                <div class="form-text mt-2 mb-4 ms-2">{{ $t("shrinkDatabaseDescription") }}</div>
+                <i18n-t tag="div" keypath="shrinkDatabaseDescriptionSqlite" class="form-text mt-2 mb-4 ms-2">
+                    <template #vacuum>
+                        <code>VACUUM</code>
+                    </template>
+                    <template #auto_vacuum>
+                        <code>AUTO_VACUUM</code>
+                    </template>
+                </i18n-t>
             </div>
-            <button
-                id="clearAllStats-btn"
-                class="btn btn-outline-danger me-2 mb-2"
-                @click="confirmClearStatistics"
-            >
+            <button id="clearAllStats-btn" class="btn btn-outline-danger me-2 mb-2" @click="confirmClearStatistics">
                 {{ $t("Clear all statistics") }}
             </button>
         </div>
@@ -53,9 +56,6 @@
 <script>
 import Confirm from "../../components/Confirm.vue";
 import { log } from "../../util.ts";
-import { useToast } from "vue-toastification";
-
-const toast = useToast();
 
 export default {
     components: {
@@ -79,9 +79,7 @@ export default {
             return this.$parent.$parent.$parent.settingsLoaded;
         },
         databaseSizeDisplay() {
-            return (
-                Math.round((this.databaseSize / 1024 / 1024) * 10) / 10 + " MB"
-            );
+            return Math.round((this.databaseSize / 1024 / 1024) * 10) / 10 + " MB";
         },
     },
 
@@ -90,7 +88,10 @@ export default {
     },
 
     methods: {
-        /** Get the current size of the database */
+        /**
+         * Get the current size of the database
+         * @returns {void}
+         */
         loadDatabaseSize() {
             log.debug("monitorhistory", "load database size");
             this.$root.getSocket().emit("getDatabaseSize", (res) => {
@@ -103,30 +104,39 @@ export default {
             });
         },
 
-        /** Request that the database is shrunk */
+        /**
+         * Request that the database is shrunk
+         * @returns {void}
+         */
         shrinkDatabase() {
             this.$root.getSocket().emit("shrinkDatabase", (res) => {
                 if (res.ok) {
                     this.loadDatabaseSize();
-                    toast.success("Done");
+                    this.$root.toastSuccess("Done");
                 } else {
                     log.debug("monitorhistory", res);
                 }
             });
         },
 
-        /** Show the dialog to confirm clearing stats */
+        /**
+         * Show the dialog to confirm clearing stats
+         * @returns {void}
+         */
         confirmClearStatistics() {
             this.$refs.confirmClearStatistics.show();
         },
 
-        /** Send the request to clear stats */
+        /**
+         * Send the request to clear stats
+         * @returns {void}
+         */
         clearStatistics() {
             this.$root.clearStatistics((res) => {
                 if (res.ok) {
                     this.$router.go();
                 } else {
-                    toast.error(res.msg);
+                    this.$root.toastError(res.msg);
                 }
             });
         },

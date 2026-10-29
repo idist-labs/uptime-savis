@@ -1,7 +1,7 @@
 const NotificationProvider = require("./notification-provider");
 const axios = require("axios");
 const { UP, DOWN, getMonitorRelativeURL } = require("../../src/util");
-const { setting } = require("../util-server");
+const { Settings } = require("../settings");
 let successMessage = "Sent Successfully.";
 
 class PagerDuty extends NotificationProvider {
@@ -23,9 +23,7 @@ class PagerDuty extends NotificationProvider {
 
             if (heartbeatJSON.status === UP) {
                 const title = "Uptime Kuma Monitor ✅ Up";
-                const eventAction = notification.pagerdutyAutoResolve || null;
-
-                return this.postNotification(notification, title, heartbeatJSON.msg, monitorJSON, eventAction);
+                return this.postNotification(notification, title, heartbeatJSON.msg, monitorJSON, "resolve");
             }
 
             if (heartbeatJSON.status === DOWN) {
@@ -39,7 +37,8 @@ class PagerDuty extends NotificationProvider {
 
     /**
      * Check if result is successful, result code should be in range 2xx
-     * @param {Object} result Axios response object
+     * @param {object} result Axios response object
+     * @returns {void}
      * @throws {Error} The status code is not in range 2xx
      */
     checkResult(result) {
@@ -56,16 +55,11 @@ class PagerDuty extends NotificationProvider {
      * @param {BeanModel} notification Message title
      * @param {string} title Message title
      * @param {string} body Message
-     * @param {Object} monitorInfo Monitor details (For Up/Down only)
+     * @param {object} monitorInfo Monitor details (For Up/Down only)
      * @param {?string} eventAction Action event for PagerDuty (trigger, acknowledge, resolve)
-     * @returns {string}
+     * @returns {Promise<string>} Success message
      */
     async postNotification(notification, title, body, monitorInfo, eventAction = "trigger") {
-
-        if (eventAction == null) {
-            return "No action required";
-        }
-
         let monitorUrl;
         if (monitorInfo.type === "port") {
             monitorUrl = monitorInfo.hostname;
@@ -78,23 +72,30 @@ class PagerDuty extends NotificationProvider {
             monitorUrl = monitorInfo.url;
         }
 
+        if (eventAction === "resolve") {
+            if (notification.pagerdutyAutoResolve === "0") {
+                return "no action required";
+            }
+            eventAction = notification.pagerdutyAutoResolve;
+        }
+
         const options = {
             method: "POST",
             url: notification.pagerdutyIntegrationUrl,
             headers: { "Content-Type": "application/json" },
             data: {
                 payload: {
-                    summary: `[${title}] [${monitorInfo.name}] ${body}`,
+                    summary: monitorInfo.name ? `[${title}] [${monitorInfo.name}] ${body}` : `[${title}] ${body}`,
                     severity: notification.pagerdutyPriority || "warning",
                     source: monitorUrl,
                 },
                 routing_key: notification.pagerdutyIntegrationKey,
                 event_action: eventAction,
-                dedup_key: "Uptime Kuma/" + monitorInfo.id,
-            }
+                dedup_key: monitorInfo.id ? "Uptime Kuma/" + monitorInfo.id : "Uptime Kuma/test",
+            },
         };
 
-        const baseURL = await setting("primaryBaseURL");
+        const baseURL = await Settings.get("primaryBaseURL");
         if (baseURL && monitorInfo) {
             options.client = "Uptime Kuma";
             options.client_url = baseURL + getMonitorRelativeURL(monitorInfo.id);

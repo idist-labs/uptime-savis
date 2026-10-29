@@ -1,21 +1,39 @@
 const nodemailer = require("nodemailer");
 const NotificationProvider = require("./notification-provider");
-const { DOWN } = require("../../src/util");
+const { log } = require("../../src/util");
 
 class SMTP extends NotificationProvider {
-
     name = "smtp";
 
+    /**
+     * @inheritdoc
+     */
     async send(notification, msg, monitorJSON = null, heartbeatJSON = null) {
+        const okMsg = "Sent Successfully.";
 
         const config = {
             host: notification.smtpHost,
             port: notification.smtpPort,
             secure: notification.smtpSecure,
-            tls: {
-                rejectUnauthorized: notification.smtpIgnoreTLSError || false,
-            }
+            headers: {},
         };
+
+        // Handle TLS/STARTTLS options
+        if (!notification.smtpSecure && notification.smtpIgnoreSTARTTLS) {
+            // Disable STARTTLS completely for servers that don't support it
+            // Connection will remain unencrypted
+            log.warn(
+                "notification",
+                `SMTP notification using unencrypted connection (STARTTLS disabled) to ${notification.smtpHost}:${notification.smtpPort}`
+            );
+            config.ignoreTLS = true;
+        } else {
+            // SMTPS (implicit TLS on port 465)
+            // or STARTTLS (default behavior for ports 25, 587)
+            config.tls = {
+                rejectUnauthorized: !notification.smtpIgnoreTLSError || false,
+            };
+        }
 
         // Fix #1129
         if (notification.smtpDkimDomain) {
@@ -36,75 +54,54 @@ class SMTP extends NotificationProvider {
                 pass: notification.smtpPassword,
             };
         }
-        // Lets start with default subject and empty string for custom one
-        let subject = msg;
 
-        // Change the subject if:
-        //     - The msg ends with "Testing" or
-        //     - Actual Up/Down Notification
-        if ((monitorJSON && heartbeatJSON) || msg.endsWith("Testing")) {
-            let customSubject = "";
-
-            // Our subject cannot end with whitespace it's often raise spam score
-            // Once I got "Cannot read property 'trim' of undefined", better be safe than sorry
-            if (notification.customSubject) {
-                customSubject = notification.customSubject.trim();
-            }
-
-            // If custom subject is not empty, change subject for notification
-            if (customSubject !== "") {
-
-                // Replace "MACROS" with corresponding variable
-                let replaceName = new RegExp("{{NAME}}", "g");
-                let replaceHostnameOrURL = new RegExp("{{HOSTNAME_OR_URL}}", "g");
-                let replaceStatus = new RegExp("{{STATUS}}", "g");
-
-                // Lets start with dummy values to simplify code
-                let monitorName = "Test";
-                let monitorHostnameOrURL = "testing.hostname";
-                let serviceStatus = "⚠️ Test";
-
-                if (monitorJSON !== null) {
-                    monitorName = monitorJSON["name"];
-
-                    if (monitorJSON["type"] === "http" || monitorJSON["type"] === "keyword") {
-                        monitorHostnameOrURL = monitorJSON["url"];
-                    } else {
-                        monitorHostnameOrURL = monitorJSON["hostname"];
-                    }
-                }
-
-                if (heartbeatJSON !== null) {
-                    serviceStatus = (heartbeatJSON["status"] === DOWN) ? "🔴 Down" : "✅ Up";
-                }
-
-                // Break replace to one by line for better readability
-                customSubject = customSubject.replace(replaceStatus, serviceStatus);
-                customSubject = customSubject.replace(replaceName, monitorName);
-                customSubject = customSubject.replace(replaceHostnameOrURL, monitorHostnameOrURL);
-
-                subject = customSubject;
+        // Handle additional headers
+        if (notification.smtpAdditionalHeaders) {
+            try {
+                config.headers = {
+                    ...config.headers,
+                    ...JSON.parse(notification.smtpAdditionalHeaders),
+                };
+            } catch (err) {
+                throw new Error("Additional Headers is not a valid JSON");
             }
         }
 
-        let transporter = nodemailer.createTransport(config);
-
-        let bodyTextContent = msg;
+        // default values in case the user does not want to template
+        let subject = msg;
+        let body = msg;
+        let useHTMLBody = false;
         if (heartbeatJSON) {
-            bodyTextContent = `${msg}\nTime (UTC): ${heartbeatJSON["time"]}`;
+            body = `${msg}\nTime (${heartbeatJSON["timezone"]}): ${heartbeatJSON["localDateTime"]}`;
+        }
+        // subject and body are templated
+        if ((monitorJSON && heartbeatJSON) || msg.endsWith("Testing")) {
+            // cannot end with whitespace as this often raises spam scores
+            const customSubject = notification.customSubject?.trim() || "";
+            const customBody = notification.customBody?.trim() || "";
+            if (customSubject !== "") {
+                subject = await this.renderTemplate(customSubject, msg, monitorJSON, heartbeatJSON);
+            }
+            if (customBody !== "") {
+                useHTMLBody = notification.htmlBody || false;
+                body = await this.renderTemplate(customBody, msg, monitorJSON, heartbeatJSON);
+            }
         }
 
         // send mail with defined transport object
+        let transporter = nodemailer.createTransport(config);
         await transporter.sendMail({
             from: notification.smtpFrom,
             cc: notification.smtpCC,
             bcc: notification.smtpBCC,
             to: notification.smtpTo,
             subject: subject,
-            text: bodyTextContent,
+            headers: config.headers,
+            // If the email body is custom, and the user wants it, set the email body as HTML
+            [useHTMLBody ? "html" : "text"]: body,
         });
 
-        return "Sent Successfully.";
+        return okMsg;
     }
 }
 

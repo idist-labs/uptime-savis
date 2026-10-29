@@ -1,14 +1,17 @@
 const NotificationProvider = require("./notification-provider");
 const axios = require("axios");
-const { setting } = require("../util-server");
 const { getMonitorRelativeURL } = require("../../src/util");
+const { Settings } = require("../settings");
 
 class Stackfield extends NotificationProvider {
-
     name = "stackfield";
 
-    async send(notification, msg, monitorJSON = null) {
-        let okMsg = "Sent Successfully.";
+    /**
+     * @inheritdoc
+     */
+    async send(notification, msg, monitorJSON = null, heartbeatJSON = null) {
+        const okMsg = "Sent Successfully.";
+
         try {
             // Stackfield message formatting: https://www.stackfield.com/help/formatting-messages-2001
 
@@ -20,21 +23,22 @@ class Stackfield extends NotificationProvider {
 
             textMsg += `\n${msg}`;
 
-            const baseURL = await setting("primaryBaseURL");
+            const baseURL = await Settings.get("primaryBaseURL");
             if (baseURL) {
-                textMsg += `\n${baseURL + getMonitorRelativeURL(monitorJSON.id)}`;
+                const urlPath = monitorJSON ? getMonitorRelativeURL(monitorJSON.id) : "/";
+                textMsg += `\n${baseURL + urlPath}`;
             }
 
             const data = {
-                "Title": textMsg,
+                Title: textMsg,
             };
+            let config = this.getAxiosConfigWithProxy({});
 
-            await axios.post(notification.stackfieldwebhookURL, data);
+            await axios.post(notification.stackfieldwebhookURL, data, config);
             return okMsg;
         } catch (error) {
             this.throwGeneralAxiosError(error);
         }
-
     }
 }
 

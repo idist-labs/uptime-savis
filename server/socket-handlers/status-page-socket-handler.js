@@ -1,5 +1,5 @@
 const { R } = require("redbean-node");
-const { checkLogin, setSetting } = require("../util-server");
+const { checkLogin } = require("../util-server");
 const dayjs = require("dayjs");
 const { log } = require("../../src/util");
 const ImageDataURI = require("../image-data-uri");
@@ -7,13 +7,29 @@ const Database = require("../database");
 const apicache = require("../modules/apicache");
 const StatusPage = require("../model/status_page");
 const { UptimeKumaServer } = require("../uptime-kuma-server");
+const { Settings } = require("../settings");
+
+/**
+ * Validates incident data
+ * @param {object} incident - The incident object
+ * @returns {void}
+ * @throws {Error} If validation fails
+ */
+function validateIncident(incident) {
+    if (!incident.title || incident.title.trim() === "") {
+        throw new Error("Please input title");
+    }
+    if (!incident.content || incident.content.trim() === "") {
+        throw new Error("Please input content");
+    }
+}
 
 /**
  * Socket handlers for status page
  * @param {Socket} socket Socket.io instance to add listeners on
+ * @returns {void}
  */
 module.exports.statusPageSocketHandler = (socket) => {
-
     // Post or edit incident
     socket.on("postIncident", async (slug, incident, callback) => {
         try {
@@ -25,16 +41,12 @@ module.exports.statusPageSocketHandler = (socket) => {
                 throw new Error("slug is not found");
             }
 
-            await R.exec("UPDATE incident SET pin = 0 WHERE status_page_id = ? ", [
-                statusPageID
-            ]);
-
             let incidentBean;
 
             if (incident.id) {
                 incidentBean = await R.findOne("incident", " id = ? AND status_page_id = ? ", [
                     incident.id,
-                    statusPageID
+                    statusPageID,
                 ]);
             }
 
@@ -46,12 +58,13 @@ module.exports.statusPageSocketHandler = (socket) => {
             incidentBean.content = incident.content;
             incidentBean.style = incident.style;
             incidentBean.pin = true;
+            incidentBean.active = true;
             incidentBean.status_page_id = statusPageID;
 
             if (incident.id) {
-                incidentBean.lastUpdatedDate = R.isoDateTime(dayjs.utc());
+                incidentBean.last_updated_date = R.isoDateTime(dayjs.utc());
             } else {
-                incidentBean.createdDate = R.isoDateTime(dayjs.utc());
+                incidentBean.created_date = R.isoDateTime(dayjs.utc());
             }
 
             await R.store(incidentBean);
@@ -74,9 +87,7 @@ module.exports.statusPageSocketHandler = (socket) => {
 
             let statusPageID = await StatusPage.slugToID(slug);
 
-            await R.exec("UPDATE incident SET pin = 0 WHERE pin = 1 AND status_page_id = ? ", [
-                statusPageID
-            ]);
+            await R.exec("UPDATE incident SET pin = 0 WHERE pin = 1 AND status_page_id = ? ", [statusPageID]);
 
             callback({
                 ok: true,
@@ -89,13 +100,176 @@ module.exports.statusPageSocketHandler = (socket) => {
         }
     });
 
+    socket.on("getIncidentHistory", async (slug, cursor, callback) => {
+        try {
+            let statusPageID = await StatusPage.slugToID(slug);
+            if (!statusPageID) {
+                throw new Error("slug is not found");
+            }
+
+            const isPublic = !socket.userID;
+            const result = await StatusPage.getIncidentHistory(statusPageID, cursor, isPublic);
+            callback({
+                ok: true,
+                ...result,
+            });
+        } catch (error) {
+            callback({
+                ok: false,
+                msg: error.message,
+            });
+        }
+    });
+
+    socket.on("editIncident", async (slug, incidentID, incident, callback) => {
+        try {
+            checkLogin(socket);
+
+            let statusPageID = await StatusPage.slugToID(slug);
+            if (!statusPageID) {
+                callback({
+                    ok: false,
+                    msg: "slug is not found",
+                    msgi18n: true,
+                });
+                return;
+            }
+
+            let bean = await R.findOne("incident", " id = ? AND status_page_id = ? ", [incidentID, statusPageID]);
+            if (!bean) {
+                callback({
+                    ok: false,
+                    msg: "Incident not found or access denied",
+                    msgi18n: true,
+                });
+                return;
+            }
+
+            try {
+                validateIncident(incident);
+            } catch (e) {
+                callback({
+                    ok: false,
+                    msg: e.message,
+                    msgi18n: true,
+                });
+                return;
+            }
+
+            const validStyles = ["info", "warning", "danger", "primary", "light", "dark"];
+            if (!validStyles.includes(incident.style)) {
+                incident.style = "warning";
+            }
+
+            bean.title = incident.title;
+            bean.content = incident.content;
+            bean.style = incident.style;
+            bean.pin = incident.pin !== false;
+            bean.lastUpdatedDate = R.isoDateTime(dayjs.utc());
+
+            await R.store(bean);
+
+            callback({
+                ok: true,
+                msg: "Saved.",
+                msgi18n: true,
+                incident: bean.toPublicJSON(),
+            });
+        } catch (error) {
+            callback({
+                ok: false,
+                msg: error.message,
+                msgi18n: true,
+            });
+        }
+    });
+
+    socket.on("deleteIncident", async (slug, incidentID, callback) => {
+        try {
+            checkLogin(socket);
+
+            let statusPageID = await StatusPage.slugToID(slug);
+            if (!statusPageID) {
+                callback({
+                    ok: false,
+                    msg: "slug is not found",
+                    msgi18n: true,
+                });
+                return;
+            }
+
+            let bean = await R.findOne("incident", " id = ? AND status_page_id = ? ", [incidentID, statusPageID]);
+            if (!bean) {
+                callback({
+                    ok: false,
+                    msg: "Incident not found or access denied",
+                    msgi18n: true,
+                });
+                return;
+            }
+
+            await R.trash(bean);
+
+            callback({
+                ok: true,
+                msg: "successDeleted",
+                msgi18n: true,
+            });
+        } catch (error) {
+            callback({
+                ok: false,
+                msg: error.message,
+                msgi18n: true,
+            });
+        }
+    });
+
+    socket.on("resolveIncident", async (slug, incidentID, callback) => {
+        try {
+            checkLogin(socket);
+
+            let statusPageID = await StatusPage.slugToID(slug);
+            if (!statusPageID) {
+                callback({
+                    ok: false,
+                    msg: "slug is not found",
+                    msgi18n: true,
+                });
+                return;
+            }
+
+            let bean = await R.findOne("incident", " id = ? AND status_page_id = ? ", [incidentID, statusPageID]);
+            if (!bean) {
+                callback({
+                    ok: false,
+                    msg: "Incident not found or access denied",
+                    msgi18n: true,
+                });
+                return;
+            }
+
+            await bean.resolve();
+
+            callback({
+                ok: true,
+                msg: "Resolved",
+                msgi18n: true,
+                incident: bean.toPublicJSON(),
+            });
+        } catch (error) {
+            callback({
+                ok: false,
+                msg: error.message,
+                msgi18n: true,
+            });
+        }
+    });
+
     socket.on("getStatusPage", async (slug, callback) => {
         try {
             checkLogin(socket);
 
-            let statusPage = await R.findOne("status_page", " slug = ? ", [
-                slug
-            ]);
+            let statusPage = await R.findOne("status_page", " slug = ? ", [slug]);
 
             if (!statusPage) {
                 throw new Error("No slug?");
@@ -120,9 +294,7 @@ module.exports.statusPageSocketHandler = (socket) => {
             checkLogin(socket);
 
             // Save Config
-            let statusPage = await R.findOne("status_page", " slug = ? ", [
-                slug
-            ]);
+            let statusPage = await R.findOne("status_page", " slug = ? ", [slug]);
 
             if (!statusPage) {
                 throw new Error("No slug?");
@@ -136,7 +308,7 @@ module.exports.statusPageSocketHandler = (socket) => {
             // If is image data url, convert to png file
             // Else assume it is a url, nothing to do
             if (imgDataUrl.startsWith("data:")) {
-                if (! imgDataUrl.startsWith(header)) {
+                if (!imgDataUrl.startsWith(header)) {
                     throw new Error("Only allowed PNG logo.");
                 }
 
@@ -145,16 +317,15 @@ module.exports.statusPageSocketHandler = (socket) => {
                 // Convert to file
                 await ImageDataURI.outputFile(imgDataUrl, Database.uploadDir + filename);
                 config.logo = `/upload/${filename}?t=` + Date.now();
-
             } else {
-                config.icon = imgDataUrl;
+                config.logo = imgDataUrl;
             }
 
             statusPage.slug = config.slug;
             statusPage.title = config.title;
             statusPage.description = config.description;
             statusPage.icon = config.logo;
-            statusPage.theme = config.theme;
+            ((statusPage.autoRefreshInterval = config.autoRefreshInterval), (statusPage.theme = config.theme));
             //statusPage.published = ;
             //statusPage.search_engine_index = ;
             statusPage.show_tags = config.showTags;
@@ -162,7 +333,17 @@ module.exports.statusPageSocketHandler = (socket) => {
             statusPage.footer_text = config.footerText;
             statusPage.custom_css = config.customCSS;
             statusPage.show_powered_by = config.showPoweredBy;
+            statusPage.rss_title = config.rssTitle;
+            statusPage.show_only_last_heartbeat = config.showOnlyLastHeartbeat;
+            statusPage.show_certificate_expiry = config.showCertificateExpiry;
             statusPage.modified_date = R.isoDateTime();
+            statusPage.analytics_id = config.analyticsId;
+            statusPage.analytics_script_url = config.analyticsScriptUrl;
+            const validAnalyticsTypes = ["google", "umami", "plausible", "matomo", "rybbit"];
+            if (config.analyticsType !== null && !validAnalyticsTypes.includes(config.analyticsType)) {
+                throw new Error("Invalid analytics type");
+            }
+            statusPage.analytics_type = config.analyticsType;
 
             await R.store(statusPage);
 
@@ -178,7 +359,7 @@ module.exports.statusPageSocketHandler = (socket) => {
                 if (group.id) {
                     groupBean = await R.findOne("group", " id = ? AND public = 1 AND status_page_id = ? ", [
                         group.id,
-                        statusPage.id
+                        statusPage.id,
                     ]);
                 } else {
                     groupBean = R.dispense("group");
@@ -191,9 +372,7 @@ module.exports.statusPageSocketHandler = (socket) => {
 
                 await R.store(groupBean);
 
-                await R.exec("DELETE FROM monitor_group WHERE group_id = ? ", [
-                    groupBean.id
-                ]);
+                await R.exec("DELETE FROM monitor_group WHERE group_id = ? ", [groupBean.id]);
 
                 let monitorOrder = 1;
 
@@ -207,6 +386,10 @@ module.exports.statusPageSocketHandler = (socket) => {
                         relationBean.send_url = monitor.sendUrl;
                     }
 
+                    if (monitor.url !== undefined) {
+                        relationBean.custom_url = monitor.url;
+                    }
+
                     await R.store(relationBean);
                 }
 
@@ -216,20 +399,21 @@ module.exports.statusPageSocketHandler = (socket) => {
 
             // Delete groups that are not in the list
             log.debug("socket", "Delete groups that are not in the list");
-            const slots = groupIDList.map(() => "?").join(",");
+            if (groupIDList.length === 0) {
+                await R.exec("DELETE FROM `group` WHERE status_page_id = ?", [statusPage.id]);
+            } else {
+                const slots = groupIDList.map(() => "?").join(",");
 
-            const data = [
-                ...groupIDList,
-                statusPage.id
-            ];
-            await R.exec(`DELETE FROM \`group\` WHERE id NOT IN (${slots}) AND status_page_id = ?`, data);
+                const data = [...groupIDList, statusPage.id];
+                await R.exec(`DELETE FROM \`group\` WHERE id NOT IN (${slots}) AND status_page_id = ?`, data);
+            }
 
             const server = UptimeKumaServer.getInstance();
 
             // Also change entry page to new slug if it is the default one, and slug is changed.
             if (server.entryPage === "statusPage-" + slug && statusPage.slug !== slug) {
                 server.entryPage = "statusPage-" + statusPage.slug;
-                await setSetting("entryPage", server.entryPage, "general");
+                await Settings.set("entryPage", server.entryPage, "general");
             }
 
             apicache.clear();
@@ -238,7 +422,6 @@ module.exports.statusPageSocketHandler = (socket) => {
                 ok: true,
                 publicGroupList,
             });
-
         } catch (error) {
             log.error("socket", error);
 
@@ -275,17 +458,19 @@ module.exports.statusPageSocketHandler = (socket) => {
             let statusPage = R.dispense("status_page");
             statusPage.slug = slug;
             statusPage.title = title;
-            statusPage.theme = "light";
+            statusPage.theme = "auto";
             statusPage.icon = "";
+            statusPage.autoRefreshInterval = 300;
             await R.store(statusPage);
 
             callback({
                 ok: true,
-                msg: "OK!"
+                msg: "successAdded",
+                msgi18n: true,
+                slug: slug,
             });
-
         } catch (error) {
-            console.error(error);
+            log.error("socket", error);
             callback({
                 ok: false,
                 msg: error.message,
@@ -303,31 +488,25 @@ module.exports.statusPageSocketHandler = (socket) => {
             let statusPageID = await StatusPage.slugToID(slug);
 
             if (statusPageID) {
-
                 // Reset entry page if it is the default one.
                 if (server.entryPage === "statusPage-" + slug) {
                     server.entryPage = "dashboard";
-                    await setSetting("entryPage", server.entryPage, "general");
+                    await Settings.set("entryPage", server.entryPage, "general");
                 }
 
                 // No need to delete records from `status_page_cname`, because it has cascade foreign key.
                 // But for incident & group, it is hard to add cascade foreign key during migration, so they have to be deleted manually.
 
                 // Delete incident
-                await R.exec("DELETE FROM incident WHERE status_page_id = ? ", [
-                    statusPageID
-                ]);
+                await R.exec("DELETE FROM incident WHERE status_page_id = ? ", [statusPageID]);
 
                 // Delete group
-                await R.exec("DELETE FROM `group` WHERE status_page_id = ? ", [
-                    statusPageID
-                ]);
+                await R.exec("DELETE FROM `group` WHERE status_page_id = ? ", [statusPageID]);
 
                 // Delete status_page
-                await R.exec("DELETE FROM status_page WHERE id = ? ", [
-                    statusPageID
-                ]);
+                await R.exec("DELETE FROM status_page WHERE id = ? ", [statusPageID]);
 
+                apicache.clear();
             } else {
                 throw new Error("Status Page is not found");
             }
@@ -348,6 +527,8 @@ module.exports.statusPageSocketHandler = (socket) => {
  * Check slug a-z, 0-9, - only
  * Regex from: https://stackoverflow.com/questions/22454258/js-regex-string-validation-for-slug
  * @param {string} slug Slug to test
+ * @returns {void}
+ * @throws Slug is not valid
  */
 function checkSlug(slug) {
     if (typeof slug !== "string") {

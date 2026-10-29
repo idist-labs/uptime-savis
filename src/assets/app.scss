@@ -3,7 +3,19 @@
 @import "node_modules/bootstrap/scss/bootstrap";
 
 #app {
-    font-family: BlinkMacSystemFont, segoe ui, Roboto, helvetica neue, Arial, noto sans, sans-serif, apple color emoji, segoe ui emoji, segoe ui symbol, noto color emoji;
+    font-family:
+        "Twemoji Country Flags",
+        BlinkMacSystemFont,
+        segoe ui,
+        Roboto,
+        helvetica neue,
+        Arial,
+        noto sans,
+        sans-serif,
+        apple color emoji,
+        segoe ui emoji,
+        segoe ui symbol,
+        noto color emoji;
 }
 
 h1 {
@@ -22,6 +34,24 @@ textarea.form-control {
     width: 10px;
 }
 
+.bg-maintenance {
+    color: white !important;
+    background-color: $maintenance !important;
+}
+
+.bg-dark {
+    color: white;
+}
+
+.text-maintenance {
+    color: $maintenance !important;
+}
+
+.incident a,
+.bg-maintenance a {
+    color: inherit;
+}
+
 .list-group {
     border-radius: 0.75rem;
 
@@ -33,7 +63,6 @@ textarea.form-control {
         }
     }
 }
-
 
 // optgroup
 optgroup {
@@ -93,10 +122,17 @@ optgroup {
     padding-right: 20px;
 }
 
+.btn-sm {
+    border-radius: 25px;
+}
+
 .btn-primary {
     color: white;
 
-    &:hover, &:active, &:focus, &.active {
+    &:hover,
+    &:active,
+    &:focus,
+    &.active {
         color: white;
         background-color: $highlight;
         border-color: $highlight;
@@ -107,10 +143,26 @@ optgroup {
     }
 }
 
+.btn-normal {
+    $bg-color: #f5f5f5;
+
+    background-color: $bg-color;
+    border-color: $bg-color;
+
+    &:hover {
+        $hover-color: darken($bg-color, 3%);
+        background-color: $hover-color;
+        border-color: $hover-color;
+    }
+}
+
 .btn-warning {
     color: white;
 
-    &:hover, &:active, &:focus, &.active {
+    &:hover,
+    &:active,
+    &:focus,
+    &.active {
         color: white;
     }
 }
@@ -118,13 +170,36 @@ optgroup {
 .btn-info {
     color: white;
 
-    &:hover, &:active, &:focus, &.active {
+    &:hover,
+    &:active,
+    &:focus,
+    &.active {
         color: white;
     }
 }
 
 .btn-dark {
-    background-color: #161B22;
+    background-color: #161b22;
+}
+
+.btn-outline-normal {
+    padding: 4px 10px;
+    border: 1px solid #ced4da;
+    border-radius: 25px;
+    background-color: transparent;
+
+    .dark & {
+        color: $dark-font-color;
+        border: 1px solid $dark-font-color2;
+    }
+
+    &.active {
+        background-color: $highlight-white;
+
+        .dark & {
+            background-color: $dark-font-color2;
+        }
+    }
 }
 
 @media (max-width: 550px) {
@@ -151,7 +226,7 @@ optgroup {
                 font-weight: bold;
             }
 
-            td:nth-child(-n+3) {
+            td:nth-child(-n + 3) {
                 text-align: center;
             }
 
@@ -179,11 +254,13 @@ optgroup {
     background-color: #090c10;
     color: $dark-font-color;
 
-    mark, .mark {
+    mark,
+    .mark {
         background-color: #b6ad86;
     }
 
-    &::-webkit-scrollbar-thumb, ::-webkit-scrollbar-thumb {
+    &::-webkit-scrollbar-thumb,
+    ::-webkit-scrollbar-thumb {
         background: $dark-border-color;
     }
 
@@ -222,6 +299,11 @@ optgroup {
         }
     }
 
+    .incident a,
+    .bg-maintenance a {
+        color: inherit;
+    }
+
     .form-control,
     .form-control:focus,
     .form-select,
@@ -230,11 +312,18 @@ optgroup {
         background-color: $dark-bg2;
     }
 
-    .form-control, .form-select {
+    .form-select:disabled {
+        color: rgba($dark-font-color, 0.7);
+        background-color: $dark-bg;
+    }
+
+    .form-control,
+    .form-select {
         border-color: $dark-border-color;
     }
 
-    .form-control:disabled, .form-control[readonly] {
+    .form-control:disabled,
+    .form-control[readonly] {
         background-color: #232f3b;
         opacity: 1;
     }
@@ -244,7 +333,8 @@ optgroup {
         color: $dark-font-color;
     }
 
-    .nav-pills .nav-link.active, .nav-pills .show > .nav-link {
+    .nav-pills .nav-link.active,
+    .nav-pills .show > .nav-link {
         color: $dark-font-color2;
     }
 
@@ -256,10 +346,27 @@ optgroup {
         color: white;
     }
 
+    .btn-normal {
+        $bg-color: $dark-header-bg;
+
+        color: $dark-font-color;
+        background-color: $bg-color;
+        border-color: $bg-color;
+
+        &:hover {
+            $hover-color: darken($bg-color, 3%);
+            background-color: $hover-color;
+            border-color: $hover-color;
+        }
+    }
+
     .btn-warning {
         color: $dark-font-color2;
 
-        &:hover, &:active, &:focus, &.active {
+        &:hover,
+        &:active,
+        &:focus,
+        &.active {
             color: $dark-font-color2;
         }
     }
@@ -323,11 +430,11 @@ optgroup {
         &.bg-info,
         &.bg-warning,
         &.bg-danger,
+        &.bg-maintenance,
         &.bg-light {
             color: $dark-font-color2;
         }
     }
-
 }
 
 /*
@@ -380,12 +487,11 @@ optgroup {
 .monitor-list {
     &.scrollbar {
         overflow-y: auto;
-        height: calc(100% - 65px);
     }
-    
+
     @media (max-width: 770px) {
         &.scrollbar {
-            height: calc(100% - 40px);
+            height: calc(100% - 97px);
         }
     }
 
@@ -403,7 +509,6 @@ optgroup {
         .info {
             white-space: nowrap;
             overflow: hidden;
-            text-overflow: ellipsis;
         }
 
         &:hover {
@@ -444,7 +549,7 @@ optgroup {
     border-color: #4caf50;
 }
 
-[contenteditable=true] {
+[contenteditable="true"] {
     transition: all $easing-in 0.2s;
     background-color: rgba(239, 239, 239, 0.7);
     border-radius: 8px;
@@ -474,7 +579,6 @@ optgroup {
         color: #eee;
     }
     */
-
 }
 
 .action {
@@ -498,12 +602,73 @@ optgroup {
     outline: none !important;
 }
 
+.prism-editor__container {
+    .important {
+        font-weight: var(--bs-body-font-weight) !important;
+    }
+}
+
 h5.settings-subheading::after {
     content: "";
     display: block;
     width: 50%;
     padding-top: 8px;
     border-bottom: 1px solid $dark-border-color;
+}
+
+/* required class */
+.code-editor,
+.css-editor {
+    /* we dont use `language-` classes anymore so that's why we need to add background and text color manually */
+
+    border-radius: 1rem;
+    padding: 10px 5px;
+    border: 1px solid #ced4da;
+
+    .dark & {
+        background: $dark-bg2;
+        border: 1px solid $dark-border-color;
+    }
+}
+
+$shadow-box-padding: 20px;
+
+.shadow-box-with-fixed-bottom-bar {
+    padding-top: $shadow-box-padding;
+    padding-bottom: 0;
+    padding-right: $shadow-box-padding;
+    padding-left: $shadow-box-padding;
+}
+
+.fixed-bottom-bar {
+    position: sticky;
+    bottom: 0;
+    margin-left: -$shadow-box-padding;
+    margin-right: -$shadow-box-padding;
+    z-index: 10;
+    background-color: rgba(white, 0.2);
+    backdrop-filter: blur(2px);
+    border-radius: 0 0 10px 10px;
+
+    .dark & {
+        background-color: rgba($dark-header-bg, 0.9);
+    }
+}
+
+@media (max-width: 770px) {
+    .toast-container {
+        margin-bottom: 100px !important;
+    }
+}
+
+@media (max-width: 550px) {
+    .toast-container {
+        margin-bottom: 126px !important;
+    }
+}
+
+.zoom-cursor {
+    cursor: zoom-in;
 }
 
 // Localization

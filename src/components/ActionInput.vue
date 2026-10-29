@@ -7,10 +7,10 @@
             :type="type"
             :placeholder="placeholder"
             :disabled="!enabled"
-        >
-        <a class="btn btn-outline-primary" @click="action()">
+        />
+        <button type="button" class="btn btn-outline-primary" :aria-label="actionAriaLabel" @click="action()">
             <font-awesome-icon :icon="icon" />
-        </a>
+        </button>
     </div>
 </template>
 
@@ -26,21 +26,21 @@ export default {
          */
         modelValue: {
             type: String,
-            default: ""
+            default: "",
         },
         /**
          * Whether the input field is enabled / disabled.
          */
         enabled: {
             type: Boolean,
-            default: true
+            default: true,
         },
         /**
          * Placeholder text for the input field.
          */
         placeholder: {
             type: String,
-            default: ""
+            default: "",
         },
         /**
          * The icon displayed in the right button of the input field.
@@ -66,9 +66,16 @@ export default {
         action: {
             type: Function,
             default: () => {},
-        }
+        },
+        /**
+         * The aria-label of the action button
+         */
+        actionAriaLabel: {
+            type: String,
+            required: true,
+        },
     },
-    emits: [ "update:modelValue" ],
+    emits: ["update:modelValue"],
     computed: {
         /**
          * Send value update to parent on change.
@@ -79,8 +86,8 @@ export default {
             },
             set(value) {
                 this.$emit("update:modelValue", value);
-            }
-        }
+            },
+        },
     },
 };
 </script>

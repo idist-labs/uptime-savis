@@ -7,10 +7,17 @@ class SimpleMqttServer {
     aedes = require("aedes")();
     server = require("net").createServer(this.aedes.handle);
 
+    /**
+     * @param {number} port Port to listen on
+     */
     constructor(port) {
         this.port = port;
     }
 
+    /**
+     * Start the MQTT server
+     * @returns {void}
+     */
     start() {
         this.server.listen(this.port, () => {
             console.log("server started and listening on port ", this.port);
@@ -34,17 +41,19 @@ server1.aedes.on("subscribe", (subscriptions, client) => {
 
     for (let s of subscriptions) {
         if (s.topic === "test") {
-            server1.aedes.publish({
-                topic: "test",
-                payload: Buffer.from("ok"),
-            }, (error) => {
-                if (error) {
-                    log.error("mqtt_server", error);
+            server1.aedes.publish(
+                {
+                    topic: "test",
+                    payload: Buffer.from("ok"),
+                },
+                (error) => {
+                    if (error) {
+                        log.error("mqtt_server", error);
+                    }
                 }
-            });
+            );
         }
     }
-
 });
 
 server1.start();

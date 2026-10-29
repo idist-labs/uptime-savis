@@ -11,7 +11,10 @@
             :required="required"
             :readonly="readonly"
             :disabled="disabled"
-        >
+        />
+
+        <!-- A hidden textarea for copying text on non-https -->
+        <textarea ref="hiddenTextarea" style="position: fixed; left: -999999px; top: -999999px"></textarea>
 
         <a class="btn btn-outline-primary" @click="copyToClipboard(model)">
             <font-awesome-icon :icon="icon" />
@@ -20,7 +23,6 @@
 </template>
 
 <script>
-
 let timeout;
 
 export default {
@@ -28,22 +30,22 @@ export default {
         /** ID of this input */
         id: {
             type: String,
-            default: ""
+            default: "",
         },
         /** Type of input */
         type: {
             type: String,
-            default: "text"
+            default: "text",
         },
         /** The value of the input */
         modelValue: {
             type: String,
-            default: ""
+            default: "",
         },
         /** A placeholder to use */
         placeholder: {
             type: String,
-            default: ""
+            default: "",
         },
         /** Should the field auto complete */
         autocomplete: {
@@ -52,7 +54,7 @@ export default {
         },
         /** Is the input required? */
         required: {
-            type: Boolean
+            type: Boolean,
         },
         /** Should the input be read only? */
         readonly: {
@@ -65,7 +67,7 @@ export default {
             default: undefined,
         },
     },
-    emits: [ "update:modelValue" ],
+    emits: ["update:modelValue"],
     data() {
         return {
             visibility: "password",
@@ -79,27 +81,30 @@ export default {
             },
             set(value) {
                 this.$emit("update:modelValue", value);
-            }
-        }
+            },
+        },
     },
-    created() {
-
-    },
+    created() {},
     methods: {
-
-        /** Show the input */
+        /**
+         * Show the input
+         * @returns {void}
+         */
         showInput() {
             this.visibility = "text";
         },
 
-        /** Hide the input */
+        /**
+         * Hide the input
+         * @returns {void}
+         */
         hideInput() {
             this.visibility = "password";
         },
 
         /**
          * Copy the provided text to the users clipboard
-         * @param {string} textToCopy
+         * @param {string} textToCopy Text to copy to clipboard
          * @returns {Promise<void>}
          */
         copyToClipboard(textToCopy) {
@@ -111,28 +116,22 @@ export default {
             }, 3000);
 
             // navigator clipboard api needs a secure context (https)
+            // For http, use the text area method (else part)
             if (navigator.clipboard && window.isSecureContext) {
                 // navigator clipboard api method'
                 return navigator.clipboard.writeText(textToCopy);
             } else {
                 // text area method
-                let textArea = document.createElement("textarea");
+                let textArea = this.$refs.hiddenTextarea;
                 textArea.value = textToCopy;
-                // make the textarea out of viewport
-                textArea.style.position = "fixed";
-                textArea.style.left = "-999999px";
-                textArea.style.top = "-999999px";
-                document.body.appendChild(textArea);
                 textArea.focus();
                 textArea.select();
                 return new Promise((res, rej) => {
                     // here the magic happens
                     document.execCommand("copy") ? res() : rej();
-                    textArea.remove();
                 });
             }
-        }
-
-    }
+        },
+    },
 };
 </script>

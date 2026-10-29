@@ -3,21 +3,27 @@ const axios = require("axios");
 const { DOWN, UP } = require("../../src/util");
 
 class WeCom extends NotificationProvider {
-
     name = "WeCom";
 
+    /**
+     * @inheritdoc
+     */
     async send(notification, msg, monitorJSON = null, heartbeatJSON = null) {
-        let okMsg = "Sent Successfully.";
+        const okMsg = "Sent Successfully.";
 
         try {
-            let WeComUrl = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=" + notification.weComBotKey;
             let config = {
                 headers: {
-                    "Content-Type": "application/json"
-                }
+                    "Content-Type": "application/json",
+                },
             };
-            let body = this.composeMessage(heartbeatJSON, msg);
-            await axios.post(WeComUrl, body, config);
+            config = this.getAxiosConfigWithProxy(config);
+            let body = this.composeMessage(notification, heartbeatJSON, msg);
+            await axios.post(
+                `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${notification.weComBotKey}`,
+                body,
+                config
+            );
             return okMsg;
         } catch (error) {
             this.throwGeneralAxiosError(error);
@@ -26,26 +32,39 @@ class WeCom extends NotificationProvider {
 
     /**
      * Generate the message to send
-     * @param {Object} heartbeatJSON Heartbeat details (For Up/Down only)
+     * @param {object} notification Notification configuration
+     * @param {object} heartbeatJSON Heartbeat details (For Up/Down only)
      * @param {string} msg General message
-     * @returns {Object}
+     * @returns {object} Message
      */
-    composeMessage(heartbeatJSON, msg) {
-        let title;
+    composeMessage(notification, heartbeatJSON, msg) {
+        let title = "UptimeKuma Message";
         if (msg != null && heartbeatJSON != null && heartbeatJSON["status"] === UP) {
             title = "UptimeKuma Monitor Up";
         }
         if (msg != null && heartbeatJSON != null && heartbeatJSON["status"] === DOWN) {
             title = "UptimeKuma Monitor Down";
         }
-        if (msg != null) {
-            title = "UptimeKuma Message";
+
+        let textObj = {
+            content: title + "\n" + msg,
+        };
+
+        // Handle mentioned_mobile_list if configured
+        if (notification.weComMentionedMobileList?.trim()) {
+            let mentionedMobiles = notification.weComMentionedMobileList
+                .split(",")
+                .map((mobile) => mobile.trim())
+                .filter((mobile) => mobile.length > 0);
+
+            if (mentionedMobiles.length > 0) {
+                textObj.mentioned_mobile_list = mentionedMobiles;
+            }
         }
+
         return {
             msgtype: "text",
-            text: {
-                content: title + msg
-            }
+            text: textObj,
         };
     }
 }

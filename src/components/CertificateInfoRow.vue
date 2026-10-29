@@ -35,16 +35,9 @@
             </div>
         </div>
         <div class="d-flex">
-            <font-awesome-icon
-                v-if="cert.issuerCertificate"
-                class="m-2 ps-6 link-icon"
-                icon="link"
-            />
+            <font-awesome-icon v-if="cert.issuerCertificate" class="m-2 ps-6 link-icon" icon="link" />
         </div>
-        <certificate-info-row
-            v-if="cert.issuerCertificate"
-            :cert="cert.issuerCertificate"
-        />
+        <certificate-info-row v-if="cert.issuerCertificate" :cert="cert.issuerCertificate" />
     </div>
 </template>
 
@@ -65,9 +58,9 @@ export default {
     methods: {
         /**
          * Format the subject of the certificate
-         * @param {Object} subject Object representing the certificates
+         * @param {object} subject Object representing the certificates
          * subject
-         * @returns {string}
+         * @returns {string} Certificate subject
          */
         formatSubject(subject) {
             if (subject.O && subject.CN && subject.C) {

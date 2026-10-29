@@ -4,19 +4,19 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 id="exampleModalLabel" class="modal-title">
-                        {{ $t("Confirm") }}
+                        {{ title || $t("Confirm") }}
                     </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" />
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" :aria-label="$t('Close')" />
                 </div>
                 <div class="modal-body">
                     <slot />
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn" :class="btnStyle" data-bs-dismiss="modal" @click="yes">
-                        {{ yesText }}
+                        {{ yesText || $t("Yes") }}
                     </button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        {{ noText }}
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @click="no">
+                        {{ noText || $t("No") }}
                     </button>
                 </div>
             </div>
@@ -37,15 +37,20 @@ export default {
         /** Text to use as yes */
         yesText: {
             type: String,
-            default: "Yes",     // TODO: No idea what to translate this
+            default: null,
         },
         /** Text to use as no */
         noText: {
             type: String,
-            default: "No",
+            default: null,
+        },
+        /** Title to show on modal. Defaults to translated version of "Config" */
+        title: {
+            type: String,
+            default: null,
         },
     },
-    emits: [ "yes" ],
+    emits: ["yes", "no"],
     data: () => ({
         modal: null,
     }),
@@ -53,15 +58,26 @@ export default {
         this.modal = new Modal(this.$refs.modal);
     },
     methods: {
-        /** Show the confirm dialog */
+        /**
+         * Show the confirm dialog
+         * @returns {void}
+         */
         show() {
             this.modal.show();
         },
         /**
-         * @emits string "yes" Notify the parent when Yes is pressed
+         * @fires string "yes" Notify the parent when Yes is pressed
+         * @returns {void}
          */
         yes() {
             this.$emit("yes");
+        },
+        /**
+         * @fires string "no" Notify the parent when No is pressed
+         * @returns {void}
+         */
+        no() {
+            this.$emit("no");
         },
     },
 };
